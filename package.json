@@ -1,0 +1,14 @@
+{
+  "name": "havenstad-roleplay",
+  "version": "1.0.0",
+  "description": "Discord bot voor HavenStad Roleplay",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.12.1",
+    "dotenv": "^16.3.1"
+  }
+}
