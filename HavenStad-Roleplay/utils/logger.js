@@ -1,27 +1,23 @@
-import fs from 'fs';
-import path from 'path';
+const fs = require("fs");
+const path = require("path");
 
-function timestamp() {
-    return new Date().toISOString().replace('T', ' ').split('.')[0];
+function writeLog(file, message) {
+    const logPath = path.join(__dirname, "../logs", file);
+    const timestamp = new Date().toISOString();
+    fs.appendFileSync(logPath, `[${timestamp}] ${message}\n`);
 }
 
-const logFile = (filename, message) => {
-    const filePath = path.join('./logs', filename);
-    fs.appendFileSync(filePath, `${message}\n`);
-};
-
-export default {
-    logInfo: (msg) => {
-        console.log(`[INFO] ${timestamp()} - ${msg}`);
-        logFile('info.log', `[INFO] ${timestamp()} - ${msg}`);
+module.exports = {
+    info: (msg) => {
+        console.log(`ℹ️ ${msg}`);
+        writeLog("info.log", msg);
     },
-    logError: (err, context) => {
-        console.error(`[ERROR] ${timestamp()} - ${context}: ${err}`);
-        logFile('errors.log', `[ERROR] ${timestamp()} - ${context}: ${err}`);
+    error: (msg) => {
+        console.error(`❌ ${msg}`);
+        writeLog("error.log", msg);
     },
-    logCommand: (cmd, user) => {
-        const msg = `[COMMAND] ${timestamp()} - ${user} gebruikte ${cmd}`;
-        console.log(msg);
-        logFile('commands.log', msg);
+    command: (msg) => {
+        console.log(`📘 ${msg}`);
+        writeLog("command.log", msg);
     }
 };
