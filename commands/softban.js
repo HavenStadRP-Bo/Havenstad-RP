@@ -1,45 +1,24 @@
-const { PermissionsBitField, EmbedBuilder } = require("discord.js");
-const logger = require("../utils/logger");
+// commands/softban.js
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 
-module.exports = {
-    name: "softban",
-    description: "Softban (ban + unban om berichten te verwijderen)",
-    options: [
-        {
-            name: "gebruiker",
-            type: 6,
-            description: "Wie wil je softbannen?",
-            required: true
-        },
-        {
-            name: "reden",
-            type: 3,
-            description: "Reden van de softban",
-            required: false
-        }
-    ],
+export const data = new SlashCommandBuilder()
+  .setName('softban')
+  .setDescription('🚪 Softban een gebruiker (ban + unban voor schoonmaak)')
+  .addUserOption(opt => opt.setName('gebruiker').setDescription('De gebruiker').setRequired(true))
+  .addStringOption(opt => opt.setName('reden').setDescription('Reden'))
+  .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers);
 
-    run: async (client, interaction) => {
-        if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
-            return interaction.reply({ content: "❌ Je hebt hier geen rechten voor!", ephemeral: true });
-        }
+export async function execute(interaction) {
+  const user = interaction.options.getUser('gebruiker');
+  const reason = interaction.options.getString('reden') || 'Geen reden';
+  const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
-        const gebruiker = interaction.options.getUser("gebruiker");
-        const reden = interaction.options.getString("reden") || "Geen reden opgegeven";
+  if (!member) return interaction.reply('❌ Gebruiker niet gevonden.');
 
-        await interaction.guild.members.ban(gebruiker.id, { days: 1, reason: reden });
-        await interaction.guild.members.unban(gebruiker.id);
+  // Ban
+  await member.ban({ days: 1, reason });
+  // Unban
+  await interaction.guild.members.unban(user.id, 'Softban reset');
 
-        const embed = new EmbedBuilder()
-            .setTitle("🧹 Softban uitgevoerd")
-            .setColor("Purple")
-            .addFields(
-                { name: "👤 Gebruiker", value: `${gebruiker}`, inline: true },
-                { name: "📋 Reden", value: reden, inline: true }
-            );
-
-        await interaction.reply({ embeds: [embed] });
-
-        logger.info(`${interaction.user.tag} softban ${gebruiker.tag}: ${reden}`);
-    }
-};
+  await interaction.reply(`✅ ${user.tag} is softbanned (ban + unban). Reden: ${reason}`);
+}
