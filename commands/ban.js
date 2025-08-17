@@ -1,49 +1,29 @@
-const { PermissionsBitField, EmbedBuilder } = require("discord.js");
-const logger = require("../utils/logger");
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 
-module.exports = {
-    name: "ban",
-    description: "Verban een gebruiker uit de server",
-    options: [
-        {
-            name: "gebruiker",
-            type: 6, // USER
-            description: "Wie wil je bannen?",
-            required: true
-        },
-        {
-            name: "reden",
-            type: 3, // STRING
-            description: "Reden van de ban",
-            required: false
-        }
-    ],
+export const data = new SlashCommandBuilder()
+  .setName('ban')
+  .setDescription('Ban een gebruiker')
+  .addUserOption(option =>
+    option.setName('gebruiker')
+      .setDescription('De gebruiker die je wilt bannen')
+      .setRequired(true))
+  .addStringOption(option =>
+    option.setName('reden')
+      .setDescription('De reden van de ban')
+      .setRequired(false))
+  .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers);
 
-    run: async (client, interaction) => {
-        if (!interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
-            return interaction.reply({ content: "❌ Je hebt hier geen rechten voor!", ephemeral: true });
-        }
+export async function execute(interaction) {
+  const user = interaction.options.getUser('gebruiker');
+  const reden = interaction.options.getString('reden') || 'Geen reden opgegeven';
 
-        const gebruiker = interaction.options.getUser("gebruiker");
-        const reden = interaction.options.getString("reden") || "Geen reden opgegeven";
+  const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
-        const member = await interaction.guild.members.fetch(gebruiker.id).catch(() => null);
-        if (!member) return interaction.reply({ content: "❌ Gebruiker niet gevonden.", ephemeral: true });
+  if (!member) {
+    await interaction.reply(`❌ Kon ${user.tag} niet vinden.`);
+    return;
+  }
 
-        await member.ban({ reason: reden });
-
-        const embed = new EmbedBuilder()
-            .setTitle("🔨 Ban uitgevoerd")
-            .setColor("Red")
-            .addFields(
-                { name: "👤 Gebruiker", value: `${gebruiker}`, inline: true },
-                { name: "📋 Reden", value: reden, inline: true },
-                { name: "👮 Moderator", value: interaction.user.tag, inline: true }
-            )
-            .setTimestamp();
-
-        await interaction.reply({ embeds: [embed] });
-
-        logger.info(`${interaction.user.tag} bannede ${gebruiker.tag}: ${reden}`);
-    }
-};
+  await member.ban({ reason: reden });
+  await interaction.reply(`⛔ ${user.tag} is geband. Reden: ${reden}`);
+}
