@@ -1,62 +1,38 @@
-const fs = require("fs");
-const path = require("path");
-const { EmbedBuilder, PermissionsBitField } = require("discord.js");
-const logger = require("../utils/logger");
+import { SlashCommandBuilder } from 'discord.js';
+import fs from 'fs';
+import path from 'path';
 
-const warnsPath = path.join(__dirname, "../data/warns.json");
+const filePath = path.resolve('./data/warns.json');
 
-module.exports = {
-    name: "warn",
-    description: "Waarschuw een gebruiker",
-    options: [
-        {
-            name: "gebruiker",
-            type: 6, // USER
-            description: "Wie wil je waarschuwen?",
-            required: true
-        },
-        {
-            name: "reden",
-            type: 3, // STRING
-            description: "Waarom krijgt deze gebruiker een waarschuwing?",
-            required: true
-        }
-    ],
+export const data = new SlashCommandBuilder()
+  .setName('warn')
+  .setDescription('Waarschuw een gebruiker')
+  .addUserOption(option =>
+    option.setName('gebruiker')
+      .setDescription('De gebruiker die je wilt waarschuwen')
+      .setRequired(true))
+  .addStringOption(option =>
+    option.setName('reden')
+      .setDescription('De reden van de waarschuwing')
+      .setRequired(true));
 
-    run: async (client, interaction) => {
-        if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers)) {
-            return interaction.reply({ content: "❌ Je hebt hier geen rechten voor!", ephemeral: true });
-        }
+export async function execute(interaction) {
+  const user = interaction.options.getUser('gebruiker');
+  const reden = interaction.options.getString('reden');
 
-        const gebruiker = interaction.options.getUser("gebruiker");
-        const reden = interaction.options.getString("reden");
+  let warns = [];
+  if (fs.existsSync(filePath)) {
+    warns = JSON.parse(fs.readFileSync(filePath));
+  }
 
-        let warns = {};
-        if (fs.existsSync(warnsPath)) {
-            warns = JSON.parse(fs.readFileSync(warnsPath));
-        }
+  warns.push({
+    gebruiker: user.id,
+    moderator: interaction.user.id,
+    reden,
+    datum: new Date().toISOString()
+  });
 
-        if (!warns[gebruiker.id]) warns[gebruiker.id] = [];
-        warns[gebruiker.id].push({
-            moderator: interaction.user.tag,
-            reden,
-            tijd: new Date().toISOString()
-        });
+  fs.writeFileSync(filePath, JSON.stringify(warns, null, 2));
 
-        fs.writeFileSync(warnsPath, JSON.stringify(warns, null, 2));
-
-        const embed = new EmbedBuilder()
-            .setTitle("⚠️ Waarschuwing toegevoegd")
-            .setColor("Yellow")
-            .addFields(
-                { name: "👤 Gebruiker", value: `${gebruiker}`, inline: true },
-                { name: "📋 Reden", value: reden, inline: true },
-                { name: "👮 Moderator", value: interaction.user.tag, inline: true }
-            )
-            .setTimestamp();
-
-        await interaction.reply({ embeds: [embed] });
-
-        logger.info(`${interaction.user.tag} gaf een warn aan ${gebruiker.tag}: ${reden}`);
-    }
-};
+  await interaction.reply(`⚠️ ${user.tag} is gewaarschuwd. Reden: ${reden}`);
+}
