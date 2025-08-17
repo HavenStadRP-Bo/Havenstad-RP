@@ -1,45 +1,34 @@
-const fs = require("fs");
-const path = require("path");
-const { EmbedBuilder } = require("discord.js");
+import { SlashCommandBuilder } from 'discord.js';
+import fs from 'fs';
+import path from 'path';
 
-const warnsPath = path.join(__dirname, "../data/warns.json");
+const filePath = path.resolve('./data/warns.json');
 
-module.exports = {
-    name: "showwarns",
-    description: "Bekijk alle waarschuwingen van een gebruiker",
-    options: [
-        {
-            name: "gebruiker",
-            type: 6,
-            description: "Van wie wil je de waarschuwingen zien?",
-            required: true
-        }
-    ],
+export const data = new SlashCommandBuilder()
+  .setName('showwarns')
+  .setDescription('Bekijk waarschuwingen van een gebruiker')
+  .addUserOption(option =>
+    option.setName('gebruiker')
+      .setDescription('De gebruiker waarvan je warns wilt zien')
+      .setRequired(true));
 
-    run: async (client, interaction) => {
-        const gebruiker = interaction.options.getUser("gebruiker");
+export async function execute(interaction) {
+  const user = interaction.options.getUser('gebruiker');
+  let warns = [];
+  if (fs.existsSync(filePath)) {
+    warns = JSON.parse(fs.readFileSync(filePath));
+  }
 
-        if (!fs.existsSync(warnsPath)) {
-            return interaction.reply({ content: "❌ Er zijn nog geen waarschuwingen opgeslagen.", ephemeral: true });
-        }
+  const userWarns = warns.filter(w => w.gebruiker === user.id);
 
-        const warns = JSON.parse(fs.readFileSync(warnsPath));
-        const userWarns = warns[gebruiker.id] || [];
+  if (userWarns.length === 0) {
+    await interaction.reply(`✅ ${user.tag} heeft geen waarschuwingen.`);
+    return;
+  }
 
-        if (userWarns.length === 0) {
-            return interaction.reply({ content: "✅ Deze gebruiker heeft geen waarschuwingen.", ephemeral: true });
-        }
+  const list = userWarns
+    .map((w, i) => `${i + 1}. ${w.reden} (door <@${w.moderator}> op ${new Date(w.datum).toLocaleString()})`)
+    .join('\n');
 
-        const embed = new EmbedBuilder()
-            .setTitle(`📋 Waarschuwingen van ${gebruiker.tag}`)
-            .setColor("Orange")
-            .setDescription(
-                userWarns.map((w, i) => 
-                    `**#${i+1}** - ${w.reden}\n👮 Door: ${w.moderator}\n🕒 ${w.tijd}`
-                ).join("\n\n")
-            )
-            .setTimestamp();
-
-        await interaction.reply({ embeds: [embed] });
-    }
-};
+  await interaction.reply(`📋 Waarschuwingen voor **${user.tag}**:\n${list}`);
+}
