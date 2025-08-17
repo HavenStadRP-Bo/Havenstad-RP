@@ -1,44 +1,78 @@
-import { Client, GatewayIntentBits, Collection } from 'discord.js';
-import dotenv from 'dotenv';
+// index.js
+import { Client, Collection, GatewayIntentBits, Partials, Events } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import logger from './utils/logger.js';
 
-dotenv.config();
+// 🔧 __dirname fix (omdat we ESM gebruiken)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// 🔑 Discord bot token via Render Environment Variables
+const TOKEN = process.env.DISCORD_TOKEN;
+
+// 🚀 Maak de bot client
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.DirectMessages,
+  ],
+  partials: [Partials.Channel], // Voor DM's
+});
+
+// Commands collectie
 client.commands = new Collection();
 
-// commands laden
-const commandsPath = path.join('./commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
+// 📂 Commands inladen
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = await import(filePath);
-    client.commands.set(command.default.data.name, command.default);
+  const filePath = path.join(commandsPath, file);
+  try {
+    const command = await import(`file://${filePath}`);
+    if ('data' in command && 'execute' in command) {
+      client.commands.set(command.data.name, command);
+      logger.info(`✅ Command geladen: ${command.data.name}`);
+    } else {
+      logger.warn(`⚠️ Command in ${file} mist "data" of "execute".`);
+    }
+  } catch (err) {
+    logger.error(`❌ Fout bij laden van ${file}: ${err}`);
+  }
 }
 
-// ready event
-client.once('ready', () => {
-    logger.logInfo(`Bot is online als ${client.user.tag}`);
-    console.log(`Bot is online als ${client.user.tag}`);
+// 🤖 Ready event
+client.once(Events.ClientReady, readyClient => {
+  logger.info(`🚀 Ingelogd als ${readyClient.user.tag}`);
 });
 
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isCommand()) return;
+// 📝 Command handler
+client.on(Events.InteractionCreate, async interaction => {
+  if (!interaction.isChatInputCommand()) return;
 
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
+  const command = client.commands.get(interaction.commandName);
 
-    try {
-        await command.execute(interaction, client);
-        logger.logCommand(interaction.commandName, interaction.user.tag);
-    } catch (error) {
-        logger.logError(error, interaction.commandName);
-        console.error(error);
-        await interaction.reply({ content: 'Er ging iets mis!', ephemeral: true });
+  if (!command) {
+    logger.warn(`Geen command gevonden voor: ${interaction.commandName}`);
+    return;
+  }
+
+  try {
+    await command.execute(interaction, client);
+  } catch (error) {
+    logger.error(`❌ Fout bij uitvoeren van ${interaction.commandName}: ${error}`);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: 'Er is een fout opgetreden bij dit commando!', ephemeral: true });
+    } else {
+      await interaction.reply({ content: 'Er is een fout opgetreden bij dit commando!', ephemeral: true });
     }
+  }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+// 🔑 Login
+client.login(TOKEN);
