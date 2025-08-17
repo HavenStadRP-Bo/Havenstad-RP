@@ -1,74 +1,40 @@
-const { ChannelType, PermissionsBitField } = require("discord.js");
-const logger = require("../utils/logger");
+// commands/rechtzaak.js
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 
-module.exports = {
-    name: "rechtzaak",
-    description: "Maak een rechtzaak kanaal aan",
-    options: [
-        {
-            name: "naam",
-            type: 3, // STRING
-            description: "Naam van de rechtzaak",
-            required: true
-        },
-        {
-            name: "type",
-            type: 3,
-            description: "Kies: tekst of voice",
-            required: true,
-            choices: [
-                { name: "Tekst", value: "text" },
-                { name: "Voice", value: "voice" }
-            ]
-        },
-        {
-            name: "persoon1",
-            type: 6, // USER
-            description: "Eerste persoon",
-            required: true
-        },
-        {
-            name: "persoon2",
-            type: 6, // USER
-            description: "Tweede persoon",
-            required: true
-        }
-    ],
+export const data = new SlashCommandBuilder()
+  .setName('rechtzaak')
+  .setDescription('⚖️ Start een rechtzaak')
+  .addStringOption(opt => opt.setName('jouwnaam').setDescription('Jouw naam').setRequired(true))
+  .addStringOption(opt => opt.setName('verdachte').setDescription('Naam van verdachte').setRequired(true))
+  .addStringOption(opt => opt.setName('reden').setDescription('Reden').setRequired(true))
+  .addStringOption(opt => opt.setName('advocaat').setDescription('Naam advocaat').setRequired(true))
+  .addStringOption(opt => opt.setName('type').setDescription('voice of text').setRequired(true).addChoices(
+    { name: 'Voice', value: 'voice' },
+    { name: 'Text', value: 'text' }
+  ));
 
-    run: async (client, interaction) => {
-        const naam = interaction.options.getString("naam");
-        const type = interaction.options.getString("type");
-        const persoon1 = interaction.options.getUser("persoon1");
-        const persoon2 = interaction.options.getUser("persoon2");
+export async function execute(interaction) {
+  const jouw = interaction.options.getString('jouwnaam');
+  const verdachte = interaction.options.getString('verdachte');
+  const reden = interaction.options.getString('reden');
+  const advocaat = interaction.options.getString('advocaat');
+  const type = interaction.options.getString('type');
+  const categoryId = '1406026219966693558';
 
-        const rechterRol = "1404873533951312024"; // rechter rol ID
-        const category = "1406026219966693558"; // category ID
+  let channel;
+  if (type === 'voice') {
+    channel = await interaction.guild.channels.create({
+      name: `rechtzaak-${jouw}-${verdachte}`,
+      type: 2,
+      parent: categoryId
+    });
+  } else {
+    channel = await interaction.guild.channels.create({
+      name: `rechtzaak-${jouw}-${verdachte}`,
+      type: 0,
+      parent: categoryId
+    });
+  }
 
-        const permissions = [
-            { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-            { id: persoon1.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.Connect] },
-            { id: persoon2.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.Connect] },
-            { id: rechterRol, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.Connect] }
-        ];
-
-        let channel;
-        if (type === "text") {
-            channel = await interaction.guild.channels.create({
-                name: `rechtzaak-${naam}`,
-                type: ChannelType.GuildText,
-                parent: category,
-                permissionOverwrites: permissions
-            });
-        } else {
-            channel = await interaction.guild.channels.create({
-                name: `rechtzaak-${naam}`,
-                type: ChannelType.GuildVoice,
-                parent: category,
-                permissionOverwrites: permissions
-            });
-        }
-
-        await interaction.reply({ content: `✅ Rechtzaak kanaal aangemaakt: ${channel}`, ephemeral: true });
-        logger.info(`${interaction.user.tag} maakte rechtzaak: ${naam}`);
-    }
-};
+  await interaction.reply(`✅ Rechtzaak gestart in ${channel}`);
+}
