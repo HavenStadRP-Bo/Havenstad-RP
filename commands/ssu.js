@@ -1,66 +1,36 @@
-const { EmbedBuilder } = require("discord.js");
-const logger = require("../utils/logger");
+// commands/ssu.js
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
 
-module.exports = {
-    name: "ssu",
-    description: "Start of stop een SSU (Server Startup)",
-    options: [
-        {
-            name: "actie",
-            type: 3,
-            description: "Kies start of stop",
-            required: true,
-            choices: [
-                { name: "Start", value: "start" },
-                { name: "Stop", value: "stop" }
-            ]
-        }
-    ],
+export const data = new SlashCommandBuilder()
+  .setName('ssu')
+  .setDescription('🌴 Start/stop server roleplay')
+  .addSubcommand(sub => sub.setName('start').setDescription('Start de server'))
+  .addSubcommand(sub => sub.setName('stop').setDescription('Stop de server'))
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-    run: async (client, interaction) => {
-        const actie = interaction.options.getString("actie");
-        const ssuPing = "<@&1404867280546041986>"; // SSU ping rol
-        const ssuKanaal = "1404865394094637227"; // SSU kanaal ID
-        const channel = client.channels.cache.get(ssuKanaal);
+export async function execute(interaction) {
+  const ssuChannel = interaction.guild.channels.cache.get('1404865394094637227');
+  const ssuPing = '<@&1404867280546041986>';
 
-        if (!channel) return interaction.reply({ content: "❌ Kanaal niet gevonden.", ephemeral: true });
+  if (interaction.options.getSubcommand() === 'start') {
+    const embed = new EmbedBuilder()
+      .setColor('Green')
+      .setTitle('🌴 Server Start')
+      .setDescription(`${ssuPing}\nOnze in-game server is **gestart**!\nKlik [hier](https://roblox.com) om te joinen.`)
+      .setImage('https://media.discordapp.net/.../image.png');
 
-        let embed;
+    await ssuChannel.send({ embeds: [embed] });
+    await interaction.reply('✅ Server is gestart.');
+  }
 
-        if (actie === "start") {
-            embed = new EmbedBuilder()
-                .setTitle("🌴 HavenStad Roleplay - Server Start!")
-                .setDescription(
-                    `${ssuPing}\n\n**Onze in-game server is nu aan het opstarten!** 🎉\n\n` +
-                    "🔹 Zorg dat je alvast klaarzit om te joinen.\n" +
-                    "🔹 Houd je aan de regels en roleplay serieus.\n\n" +
-                    "**Klik hieronder om direct te joinen:**\n[✨ Klik hier om te verbinden](https://roblox.com)"
-                )
-                .setColor("Green")
-                .setImage("https://media.discordapp.net/attachments/1394316929518272512/1406159811480915978/image.png") // banner start
-                .setTimestamp()
-                .setFooter({ text: "Veel plezier met roleplay in HavenStad!" });
-        }
+  if (interaction.options.getSubcommand() === 'stop') {
+    const embed = new EmbedBuilder()
+      .setColor('DarkRed')
+      .setTitle('⛔ Server Gesloten')
+      .setDescription(`${ssuPing}\nOnze server is nu gesloten.\nKlik [hier](https://roblox.com) om alsnog te verbinden.`)
+      .setImage('https://media.discordapp.net/.../image_1.png');
 
-        if (actie === "stop") {
-            embed = new EmbedBuilder()
-                .setTitle("⛔ HavenStad Roleplay - Server Gesloten")
-                .setDescription(
-                    "**De server is momenteel gesloten.**\n\n" +
-                    "❌ Er is op dit moment geen staff actief.\n" +
-                    "✅ Je kunt nog steeds joinen, maar roleplay kan beperkt zijn.\n\n" +
-                    "**Klik hieronder om alsnog te verbinden:**\n[✨ Klik hier om te verbinden](https://roblox.com)\n\n" +
-                    "ℹ️ Houd onze Discord in de gaten voor de volgende SSU!"
-                )
-                .setColor("#8B0000") // donkerrood
-                .setImage("https://media.discordapp.net/attachments/1394316929518272512/1406159811804139530/image_1.png") // banner stop
-                .setTimestamp()
-                .setFooter({ text: "Bedankt voor het spelen in HavenStad Roleplay!" });
-        }
-
-        await channel.send({ content: ssuPing, embeds: [embed] });
-        await interaction.reply({ content: `✅ ${actie === "start" ? "SSU gestart" : "SSU gestopt"}!`, ephemeral: true });
-
-        logger.info(`${interaction.user.tag} voerde /ssu ${actie} uit`);
-    }
-};
+    await ssuChannel.send({ embeds: [embed] });
+    await interaction.reply('✅ Server is gestopt.');
+  }
+}
