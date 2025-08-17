@@ -1,23 +1,42 @@
-const fs = require("fs");
-const path = require("path");
+// utils/logger.js
+import winston from "winston";
+import path from "path";
+import { fileURLToPath } from "url";
 
-function writeLog(file, message) {
-    const logPath = path.join(__dirname, "../logs", file);
-    const timestamp = new Date().toISOString();
-    fs.appendFileSync(logPath, `[${timestamp}] ${message}\n`);
-}
+// nodig voor juiste paden (Render gebruikt /opt/render/project/src/)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-module.exports = {
-    info: (msg) => {
-        console.log(`ℹ️ ${msg}`);
-        writeLog("info.log", msg);
-    },
-    error: (msg) => {
-        console.error(`❌ ${msg}`);
-        writeLog("error.log", msg);
-    },
-    command: (msg) => {
-        console.log(`📘 ${msg}`);
-        writeLog("command.log", msg);
-    }
-};
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+    winston.format.printf(
+      ({ timestamp, level, message }) => `[${timestamp}] ${level.toUpperCase()}: ${message}`
+    )
+  ),
+  transports: [
+    // Console log
+    new winston.transports.Console(),
+
+    // Error logs
+    new winston.transports.File({
+      filename: path.join(__dirname, "../logs/error.log"),
+      level: "error",
+    }),
+
+    // Info & alles boven info
+    new winston.transports.File({
+      filename: path.join(__dirname, "../logs/info.log"),
+      level: "info",
+    }),
+
+    // Alles gecombineerd
+    new winston.transports.File({
+      filename: path.join(__dirname, "../logs/combined.log"),
+    }),
+  ],
+});
+
+// Zorg dat je default export hebt
+export default logger;
