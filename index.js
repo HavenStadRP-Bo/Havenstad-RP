@@ -1,78 +1,55 @@
-// index.js
-import { Client, Collection, GatewayIntentBits, Partials, Events } from 'discord.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import express from 'express';
+import { Client, GatewayIntentBits, Events } from 'discord.js';
 import logger from './utils/logger.js';
+import loadCommands from './command.js';
 
-// 🔧 __dirname fix (omdat we ESM gebruiken)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// 🔑 Discord bot token via Render Environment Variables
-const TOKEN = process.env.DISCORD_TOKEN;
-
-// 🚀 Maak de bot client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages,
   ],
-  partials: [Partials.Channel], // Voor DM's
 });
 
-// Commands collectie
-client.commands = new Collection();
-
-// 📂 Commands inladen
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
-for (const file of commandFiles) {
-  const filePath = path.join(commandsPath, file);
-  try {
-    const command = await import(`file://${filePath}`);
-    if ('data' in command && 'execute' in command) {
-      client.commands.set(command.data.name, command);
-      logger.info(`✅ Command geladen: ${command.data.name}`);
-    } else {
-      logger.warn(`⚠️ Command in ${file} mist "data" of "execute".`);
-    }
-  } catch (err) {
-    logger.error(`❌ Fout bij laden van ${file}: ${err}`);
-  }
-}
-
-// 🤖 Ready event
-client.once(Events.ClientReady, readyClient => {
-  logger.info(`🚀 Ingelogd als ${readyClient.user.tag}`);
+// Kleine webserver voor uptime bots
+const app = express();
+app.get('/', (req, res) => res.send('✅ HavenStad RP Bot is online'));
+app.listen(process.env.PORT || 3000, () => {
+  logger.info(`🌐 Webserver gestart op poort ${process.env.PORT || 3000}`);
 });
 
-// 📝 Command handler
-client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isChatInputCommand()) return;
+// Commands laden
+loadCommands(client);
+
+client.once(Events.ClientReady, () => {
+  logger.info(`🚀 Ingelogd als ${client.user.tag}`);
+});
+
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isCommand()) return;
 
   const command = client.commands.get(interaction.commandName);
-
   if (!command) {
-    logger.warn(`Geen command gevonden voor: ${interaction.commandName}`);
+    logger.warn(`⚠️ Command ${interaction.commandName} niet gevonden`);
     return;
   }
 
   try {
-    await command.execute(interaction, client);
+    await command.execute(interaction);
   } catch (error) {
     logger.error(`❌ Fout bij uitvoeren van ${interaction.commandName}: ${error}`);
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: 'Er is een fout opgetreden bij dit commando!', ephemeral: true });
+      await interaction.followUp({
+        content: '❌ Er ging iets mis bij dit commando.',
+        ephemeral: true,
+      });
     } else {
-      await interaction.reply({ content: 'Er is een fout opgetreden bij dit commando!', ephemeral: true });
+      await interaction.reply({
+        content: '❌ Er ging iets mis bij dit commando.',
+        ephemeral: true,
+      });
     }
   }
 });
 
-// 🔑 Login
-client.login(TOKEN);
+client.login(process.env.TOKEN);
