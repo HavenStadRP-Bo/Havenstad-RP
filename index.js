@@ -1,55 +1,73 @@
-import express from 'express';
-import { Client, GatewayIntentBits, Events } from 'discord.js';
-import logger from './utils/logger.js';
-import loadCommands from './command.js';
+// index.js
+import { Client, GatewayIntentBits, Collection } from "discord.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import logger from "./utils/logger.js";
+import "./handlers/commands.js"; // zorgt dat je commands worden geregistreerd
 
+// Express server voor Render + uptime bots
+import express from "express";
+const app = express();
+app.get("/", (req, res) => res.send("✅ HavenStad RP Bot draait!"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`[WEB] Server online op poort ${PORT}`);
+});
+
+// Nodige vars
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Discord client setup
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
   ],
 });
 
-// Kleine webserver voor uptime bots
-const app = express();
-app.get('/', (req, res) => res.send('✅ HavenStad RP Bot is online'));
-app.listen(process.env.PORT || 3000, () => {
-  logger.info(`🌐 Webserver gestart op poort ${process.env.PORT || 3000}`);
-});
+client.commands = new Collection();
 
-// Commands laden
-loadCommands(client);
+// Commands inladen
+const commandsPath = path.join(__dirname, "commands");
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(".js"));
 
-client.once(Events.ClientReady, () => {
+for (const file of commandFiles) {
+  const filePath = path.join(commandsPath, file);
+  const command = await import(`file://${filePath}`);
+  if ("data" in command && "execute" in command) {
+    client.commands.set(command.data.name, command);
+    logger.info(`✅ Command geladen: ${command.data.name}`);
+  } else {
+    logger.error(`❌ Command ${file} mist "data" of "execute"`);
+  }
+}
+
+// Bot klaar event
+client.once("ready", () => {
   logger.info(`🚀 Ingelogd als ${client.user.tag}`);
 });
 
-client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isCommand()) return;
+// Interactie handler
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand()) return;
 
   const command = client.commands.get(interaction.commandName);
-  if (!command) {
-    logger.warn(`⚠️ Command ${interaction.commandName} niet gevonden`);
-    return;
-  }
+  if (!command) return;
 
   try {
-    await command.execute(interaction);
+    await command.execute(interaction, client);
   } catch (error) {
-    logger.error(`❌ Fout bij uitvoeren van ${interaction.commandName}: ${error}`);
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({
-        content: '❌ Er ging iets mis bij dit commando.',
-        ephemeral: true,
-      });
-    } else {
-      await interaction.reply({
-        content: '❌ Er ging iets mis bij dit commando.',
-        ephemeral: true,
-      });
-    }
+    logger.error(error);
+    await interaction.reply({
+      content: "❌ Er ging iets mis bij het uitvoeren van dit command.",
+      ephemeral: true,
+    });
   }
 });
 
-client.login(process.env.TOKEN);
+// Bot starten
+client.login(process.env.DISCORD_TOKEN);
