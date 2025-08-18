@@ -1,29 +1,17 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
+import { hasModPermission } from '../utils/permissions.js';
 
 export const data = new SlashCommandBuilder()
   .setName('kick')
   .setDescription('Kick een gebruiker')
-  .addUserOption(option =>
-    option.setName('gebruiker')
-      .setDescription('De gebruiker die je wilt kicken')
-      .setRequired(true))
-  .addStringOption(option =>
-    option.setName('reden')
-      .setDescription('De reden van de kick')
-      .setRequired(false))
-  .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers);
+  .addUserOption(opt => opt.setName('target').setDescription('Gebruiker').setRequired(true));
 
 export async function execute(interaction) {
-  const user = interaction.options.getUser('gebruiker');
-  const reden = interaction.options.getString('reden') || 'Geen reden opgegeven';
-
-  const member = await interaction.guild.members.fetch(user.id).catch(() => null);
-
-  if (!member) {
-    await interaction.reply(`❌ Kon ${user.tag} niet vinden.`);
-    return;
+  if (!hasModPermission(interaction.member)) {
+    return interaction.reply({ content: '❌ Geen permissie.', ephemeral: true });
   }
-
-  await member.kick(reden);
-  await interaction.reply(`👢 ${user.tag} is gekickt. Reden: ${reden}`);
+  const user = interaction.options.getUser('target');
+  const member = await interaction.guild.members.fetch(user.id);
+  await member.kick();
+  await interaction.reply(`✅ ${user.tag} is gekickt.`);
 }
