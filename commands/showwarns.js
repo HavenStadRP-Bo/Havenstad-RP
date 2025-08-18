@@ -1,34 +1,15 @@
 import { SlashCommandBuilder } from 'discord.js';
-import fs from 'fs';
-import path from 'path';
-
-const filePath = path.resolve('./data/warns.json');
+import { hasModPermission } from '../utils/permissions.js';
 
 export const data = new SlashCommandBuilder()
   .setName('showwarns')
   .setDescription('Bekijk waarschuwingen van een gebruiker')
-  .addUserOption(option =>
-    option.setName('gebruiker')
-      .setDescription('De gebruiker waarvan je warns wilt zien')
-      .setRequired(true));
+  .addUserOption(opt => opt.setName('target').setDescription('Gebruiker').setRequired(true));
 
 export async function execute(interaction) {
-  const user = interaction.options.getUser('gebruiker');
-  let warns = [];
-  if (fs.existsSync(filePath)) {
-    warns = JSON.parse(fs.readFileSync(filePath));
+  if (!hasModPermission(interaction.member)) {
+    return interaction.reply({ content: '❌ Geen permissie.', ephemeral: true });
   }
-
-  const userWarns = warns.filter(w => w.gebruiker === user.id);
-
-  if (userWarns.length === 0) {
-    await interaction.reply(`✅ ${user.tag} heeft geen waarschuwingen.`);
-    return;
-  }
-
-  const list = userWarns
-    .map((w, i) => `${i + 1}. ${w.reden} (door <@${w.moderator}> op ${new Date(w.datum).toLocaleString()})`)
-    .join('\n');
-
-  await interaction.reply(`📋 Waarschuwingen voor **${user.tag}**:\n${list}`);
+  const user = interaction.options.getUser('target');
+  await interaction.reply(`📜 Waarschuwingen van ${user.tag}: (hier komt db).`);
 }
