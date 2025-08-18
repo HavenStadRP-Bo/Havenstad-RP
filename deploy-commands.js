@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 // config
 const clientId = '1406028276199067780'; // jouw bot ID
 const guildId = '1404865392962033664';  // jouw server ID
-const token = process.env.TOKEN; // je bot token staat in Render
+const token = process.env.DISCORD_TOKEN; // gebruik env var
 
 const commands = [];
 
