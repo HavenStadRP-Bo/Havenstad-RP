@@ -1,38 +1,17 @@
 import { SlashCommandBuilder } from 'discord.js';
-import fs from 'fs';
-import path from 'path';
-
-const filePath = path.resolve('./data/warns.json');
+import { hasModPermission } from '../utils/permissions.js';
 
 export const data = new SlashCommandBuilder()
   .setName('warn')
   .setDescription('Waarschuw een gebruiker')
-  .addUserOption(option =>
-    option.setName('gebruiker')
-      .setDescription('De gebruiker die je wilt waarschuwen')
-      .setRequired(true))
-  .addStringOption(option =>
-    option.setName('reden')
-      .setDescription('De reden van de waarschuwing')
-      .setRequired(true));
+  .addUserOption(opt => opt.setName('target').setDescription('Gebruiker').setRequired(true))
+  .addStringOption(opt => opt.setName('reden').setDescription('Reden').setRequired(true));
 
 export async function execute(interaction) {
-  const user = interaction.options.getUser('gebruiker');
-  const reden = interaction.options.getString('reden');
-
-  let warns = [];
-  if (fs.existsSync(filePath)) {
-    warns = JSON.parse(fs.readFileSync(filePath));
+  if (!hasModPermission(interaction.member)) {
+    return interaction.reply({ content: '❌ Geen permissie.', ephemeral: true });
   }
-
-  warns.push({
-    gebruiker: user.id,
-    moderator: interaction.user.id,
-    reden,
-    datum: new Date().toISOString()
-  });
-
-  fs.writeFileSync(filePath, JSON.stringify(warns, null, 2));
-
+  const user = interaction.options.getUser('target');
+  const reden = interaction.options.getString('reden');
   await interaction.reply(`⚠️ ${user.tag} is gewaarschuwd. Reden: ${reden}`);
 }
