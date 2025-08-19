@@ -1,102 +1,72 @@
-import { Client, GatewayIntentBits, Collection, REST, Routes, PermissionsBitField } from 'discord.js';
+// index.js
+import { Client, GatewayIntentBits, Collection } from 'discord.js';
 import express from 'express';
+import logger from './utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import logger from './utils/logger.js';
+import './deploy-commands.js'; // registreert commands bij startup
 
-// ====== Discord client ======
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
-});
-client.commands = new Collection();
-
-// ====== Pad helpers ======
+// Zorg dat __dirname werkt in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ====== Commands laden ======
-const commands = [];
+// Express uptime server
+const app = express();
+const PORT = process.env.PORT || 10000;
+app.get('/', (req, res) => res.send('Bot is online ✅'));
+app.listen(PORT, () => logger.info(`[WEB] Server online op poort ${PORT}`));
+
+// Discord client
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+  ],
+});
+
+client.commands = new Collection();
+
+// Commands laden
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
 
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
-  const command = await import(filePath);
-  if (command.data && command.execute) {
-    client.commands.set(command.data.name, command);
-    commands.push(command.data.toJSON());
-    logger.info(`✅ Command geladen: ${command.data.name}`);
+  const { data, execute } = await import(`./commands/${file}`);
+  if (data && execute) {
+    client.commands.set(data.name, { data, execute });
+    logger.info(`✅ Command geladen: ${data.name}`);
   } else {
     logger.error(`❌ Fout bij laden van ${file}`);
   }
 }
 
-// ====== Slash commands registreren ======
-const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-const clientId = '1406028276199067780';
-const guildId = '1406028276199067780';
-
-(async () => {
-  try {
-    logger.info('🔄 Slash commands registreren...');
-    await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
-    logger.info('✅ Slash commands succesvol geregistreerd!');
-  } catch (error) {
-    logger.error('❌ Fout bij registreren van slash commands:', error);
-  }
-})();
-
-// ====== Staff rollen ======
-const STAFF_ROLES = [
-  '1406025210527879238', // Beheer
-  '1406942631522734231', // Manager
-  '1406942944627265536', // Superizer
-  '1406943073694515280', // SR.Mod
-  '1406943251826606234', // MOD
-];
-
-// Commands die iedereen mag doen
-const PUBLIC_COMMANDS = ['rechtzaak', 'partner', 'report'];
-
-// ====== Bot ready ======
+// Event: bot klaar
 client.once('ready', () => {
   logger.info(`🚀 Ingelogd als ${client.user.tag}`);
 });
 
-// ====== Interactie handler ======
+// Event: command uitgevoerd
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
 
-  // 🔒 Check permissions
-  if (!PUBLIC_COMMANDS.includes(command.data.name)) {
-    const memberRoles = interaction.member.roles.cache;
-    const isStaff = STAFF_ROLES.some(r => memberRoles.has(r));
-
-    if (!isStaff) {
-      return interaction.reply({
-        content: '❌ Je hebt geen permissie om dit commando te gebruiken.',
-        ephemeral: true,
-      });
-    }
-  }
-
   try {
     await command.execute(interaction);
   } catch (error) {
-    logger.error(error);
-    await interaction.reply({ content: '❌ Er ging iets mis bij uitvoeren van dit commando.', ephemeral: true });
+    logger.error(`❌ Fout bij uitvoeren van ${interaction.commandName}: ${error}`);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: '⚠️ Er ging iets mis.', ephemeral: true });
+    } else {
+      await interaction.reply({ content: '⚠️ Er ging iets mis.', ephemeral: true });
+    }
   }
 });
 
-// ====== Webserver voor uptime ======
-const app = express();
-app.get('/', (req, res) => res.send('Bot is running ✅'));
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => logger.info(`[WEB] Server online op poort ${PORT}`));
-
-// ====== Login ======
+// Login
 client.login(process.env.TOKEN);
