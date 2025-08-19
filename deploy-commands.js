@@ -4,35 +4,38 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// Zorgt dat __dirname werkt met ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// config
-const clientId = '1406028276199067780'; // jouw bot ID
-const guildId = '1404865392962033664';  // jouw server ID
-const token = process.env.DISCORD_TOKEN; // gebruik env var
-
 const commands = [];
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-// alle commands inladen
-const foldersPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(foldersPath).filter(file => file.endsWith('.js'));
-
+// Laad alle command data
 for (const file of commandFiles) {
-  const filePath = path.join(foldersPath, file);
-  const command = await import(`./commands/${file}`);
-  if ('data' in command && 'execute' in command) {
+  const filePath = path.join(commandsPath, file);
+  const command = await import(`file://${filePath}`);
+  if (command.data) {
     commands.push(command.data.toJSON());
-  } else {
-    console.log(`[WAARSCHUWING] Command ${file} heeft geen data of execute`);
+    console.log(`✅ Command gevonden voor registratie: ${command.data.name}`);
   }
 }
 
-// commands pushen naar Discord
+// Environment variables (moeten in Render staan)
+const clientId = process.env.CLIENT_ID;   // 1406028276199067780
+const guildId = process.env.GUILD_ID;     // 1406028276199067780
+const token = process.env.DISCORD_TOKEN;  // jouw bot token
+
+if (!clientId || !guildId || !token) {
+  console.error('❌ CLIENT_ID, GUILD_ID of DISCORD_TOKEN ontbreekt in environment!');
+  process.exit(1);
+}
+
 const rest = new REST({ version: '10' }).setToken(token);
 
 try {
-  console.log(`🔄 Bezig met registreren van ${commands.length} commands...`);
+  console.log('🚀 Start met deployen van slash commands...');
 
   await rest.put(
     Routes.applicationGuildCommands(clientId, guildId),
@@ -41,5 +44,5 @@ try {
 
   console.log('✅ Slash commands succesvol geregistreerd!');
 } catch (error) {
-  console.error(error);
+  console.error('❌ Fout bij deployen van commands:', error);
 }
